@@ -5,32 +5,22 @@ import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.Button;
-import android.widget.ImageView;
-import android.widget.TextView;
-import android.widget.Toast;
+import android.widget.*;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import com.bumptech.glide.Glide;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.database.DataSnapshot;
-import com.google.firebase.database.DatabaseError;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
-import com.google.firebase.database.Query;
-import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.database.*;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class HomeActivity extends AppCompatActivity {
 
+    private TextView nameAgeTextView, courseTextView, bioTextView, hobbiesTextView, noMatchesTextView;
     private ImageView profileImageView;
-    private TextView nameAgeTextView, courseTextView;
     private Button likeButton, skipButton, viewProfileButton;
+    private View userCardView;
 
     private FirebaseAuth mAuth;
     private DatabaseReference mDatabase;
@@ -45,186 +35,154 @@ public class HomeActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
 
-        // Setup toolbar
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         getSupportActionBar().setTitle("Find Matches");
 
-        // Initialize Firebase
         mAuth = FirebaseAuth.getInstance();
         mDatabase = FirebaseDatabase.getInstance().getReference();
         currentUserId = mAuth.getCurrentUser().getUid();
 
-        // Initialize UI elements
+        // UI references
         profileImageView = findViewById(R.id.profile_image_view);
         nameAgeTextView = findViewById(R.id.name_age_text_view);
         courseTextView = findViewById(R.id.course_text_view);
+        bioTextView = findViewById(R.id.bio_text_view);
+        hobbiesTextView = findViewById(R.id.hobbies_text_view);
+        viewProfileButton = findViewById(R.id.view_profile_button);
         likeButton = findViewById(R.id.like_button);
         skipButton = findViewById(R.id.skip_button);
-        viewProfileButton = findViewById(R.id.view_profile_button);
+        noMatchesTextView = findViewById(R.id.no_matches_text_view);
+        userCardView = findViewById(R.id.user_card_view);
 
-        // Setup buttons
-        likeButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (displayedUser != null) {
-                    likeUser(displayedUser.getId());
-                }
+        // Buttons
+        likeButton.setOnClickListener(v -> {
+            if (displayedUser != null) likeUser(displayedUser.getId());
+        });
+
+        skipButton.setOnClickListener(v -> {
+            if (displayedUser != null) skipUser(displayedUser.getId());
+        });
+
+        viewProfileButton.setOnClickListener(v -> {
+            if (displayedUser != null) {
+                Intent intent = new Intent(HomeActivity.this, ViewProfileActivity.class);
+                intent.putExtra("userId", displayedUser.getId());
+                startActivity(intent);
             }
         });
 
-        skipButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (displayedUser != null) {
-                    skipUser(displayedUser.getId());
-                }
-            }
-        });
-
-        viewProfileButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (displayedUser != null) {
-                    Intent intent = new Intent(HomeActivity.this, ViewProfileActivity.class);
-                    intent.putExtra("userId", displayedUser.getId());
-                    startActivity(intent);
-                }
-            }
-        });
-
-        // Initialize potential matches list
         potentialMatches = new ArrayList<>();
-
-        // Load current user data
         loadCurrentUserData();
     }
 
     private void loadCurrentUserData() {
         mDatabase.child("users").child(currentUserId).addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
-            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
-                if (dataSnapshot.exists()) {
-                    currentUser = dataSnapshot.getValue(User.class);
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                if (snapshot.exists()) {
+                    currentUser = snapshot.getValue(User.class);
                     currentUser.setId(currentUserId);
-
-                    // Load potential matches
                     loadPotentialMatches();
                 }
             }
 
             @Override
-            public void onCancelled(@NonNull DatabaseError databaseError) {
-                Toast.makeText(HomeActivity.this, "Failed to load user data: " + databaseError.getMessage(),
-                        Toast.LENGTH_SHORT).show();
+            public void onCancelled(@NonNull DatabaseError error) {
+                Toast.makeText(HomeActivity.this, "Error loading user data.", Toast.LENGTH_SHORT).show();
             }
         });
     }
 
     private void loadPotentialMatches() {
-        // Clear previous list
         potentialMatches.clear();
         currentIndex = -1;
 
-        // Get user preferences
         mDatabase.child("users").child(currentUserId).child("preferences")
                 .addListenerForSingleValueEvent(new ValueEventListener() {
                     @Override
-                    public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
-                        // Default preferences if none set
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
                         int minAge = 18;
                         int maxAge = 30;
                         String genderPreference = "Any";
-                        Map<String, Boolean> coursePreferences = new HashMap<>();
+                        String coursePreference = "";
 
-                        if (dataSnapshot.exists()) {
-                            if (dataSnapshot.child("minAge").exists()) {
-                                minAge = dataSnapshot.child("minAge").getValue(Integer.class);
-                            }
+                        if (snapshot.exists()) {
+                            Long minAgeLong = snapshot.child("minAge").getValue(Long.class);
+                            if (minAgeLong != null) minAge = minAgeLong.intValue();
 
-                            if (dataSnapshot.child("maxAge").exists()) {
-                                maxAge = dataSnapshot.child("maxAge").getValue(Integer.class);
-                            }
+                            Long maxAgeLong = snapshot.child("maxAge").getValue(Long.class);
+                            if (maxAgeLong != null) maxAge = maxAgeLong.intValue();
 
-                            if (dataSnapshot.child("genderPreference").exists()) {
-                                genderPreference = dataSnapshot.child("genderPreference").getValue(String.class);
-                            }
+                            String genderPref = snapshot.child("genderPreference").getValue(String.class);
+                            if (genderPref != null) genderPreference = genderPref;
 
-                            if (dataSnapshot.child("coursePreferences").exists()) {
-                                for (DataSnapshot courseSnapshot : dataSnapshot.child("coursePreferences").getChildren()) {
-                                    String course = courseSnapshot.getKey();
-                                    boolean selected = courseSnapshot.getValue(Boolean.class);
-                                    if (selected) {
-                                        coursePreferences.put(course, true);
-                                    }
-                                }
-                            }
+                            String coursePref = snapshot.child("coursePreference").getValue(String.class);
+                            if (coursePref != null) coursePreference = coursePref;
                         }
 
-                        // Query users based on preferences
                         Query usersQuery = mDatabase.child("users");
+                        int finalMinAge = minAge;
+                        int finalMaxAge = maxAge;
+                        String finalGenderPreference = genderPreference;
+                        String finalCoursePreference = coursePreference;
 
                         usersQuery.addListenerForSingleValueEvent(new ValueEventListener() {
                             @Override
-                            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
-                                for (DataSnapshot userSnapshot : dataSnapshot.getChildren()) {
+                            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                                for (DataSnapshot userSnapshot : snapshot.getChildren()) {
                                     String userId = userSnapshot.getKey();
-
-                                    // Skip current user
-                                    if (userId.equals(currentUserId)) {
-                                        continue;
-                                    }
+                                    if (userId.equals(currentUserId)) continue;
 
                                     User user = userSnapshot.getValue(User.class);
+                                    if (user == null) continue;
                                     user.setId(userId);
 
-                                    // Check if already interacted with this user
                                     mDatabase.child("users").child(currentUserId).child("interactions").child(userId)
                                             .addListenerForSingleValueEvent(new ValueEventListener() {
                                                 @Override
                                                 public void onDataChange(@NonNull DataSnapshot interactionSnapshot) {
                                                     if (!interactionSnapshot.exists()) {
-                                                        // Check age preference
-                                                        int userAge = user.getAge();
-                                                        if (userAge >= minAge && userAge <= maxAge) {
-                                                            // Check gender preference
-                                                            if (genderPreference.equals("Any") || genderPreference.equals(user.getGender())) {
-                                                                // Check course preference if any
-                                                                if (coursePreferences.isEmpty() || coursePreferences.containsKey(user.getCourse())) {
-                                                                    // Add to potential matches
-                                                                    potentialMatches.add(userId);
+                                                        int age = user.getAge();
+                                                        String gender = user.getGender();
+                                                        String course = user.getCourse();
 
-                                                                    // If this is the first match, display it
-                                                                    if (currentIndex == -1) {
-                                                                        currentIndex = 0;
-                                                                        displayUser(userId);
-                                                                    }
-                                                                }
+                                                        boolean ageOK = age >= finalMinAge && age <= finalMaxAge;
+                                                        boolean genderOK = finalGenderPreference.equalsIgnoreCase("Any") ||
+                                                                finalGenderPreference.equalsIgnoreCase(gender);
+                                                        boolean courseOK = finalCoursePreference.isEmpty() ||
+                                                                finalCoursePreference.equalsIgnoreCase(course);
+
+                                                        if (ageOK && genderOK && courseOK) {
+                                                            potentialMatches.add(userId);
+                                                            if (currentIndex == -1) {
+                                                                currentIndex = 0;
+                                                                displayUser(userId);
                                                             }
                                                         }
                                                     }
                                                 }
 
                                                 @Override
-                                                public void onCancelled(@NonNull DatabaseError databaseError) {
-                                                    // Do nothing
-                                                }
+                                                public void onCancelled(@NonNull DatabaseError error) {}
                                             });
+                                }
+
+                                if (potentialMatches.isEmpty()) {
+                                    showNextUser(); // will trigger the "no users" view
                                 }
                             }
 
                             @Override
-                            public void onCancelled(@NonNull DatabaseError databaseError) {
-                                Toast.makeText(HomeActivity.this, "Failed to load users: " + databaseError.getMessage(),
-                                        Toast.LENGTH_SHORT).show();
+                            public void onCancelled(@NonNull DatabaseError error) {
+                                Toast.makeText(HomeActivity.this, "Failed to load users.", Toast.LENGTH_SHORT).show();
                             }
                         });
                     }
 
                     @Override
-                    public void onCancelled(@NonNull DatabaseError databaseError) {
-                        Toast.makeText(HomeActivity.this, "Failed to load preferences: " + databaseError.getMessage(),
-                                Toast.LENGTH_SHORT).show();
+                    public void onCancelled(@NonNull DatabaseError error) {
+                        Toast.makeText(HomeActivity.this, "Failed to load preferences.", Toast.LENGTH_SHORT).show();
                     }
                 });
     }
@@ -232,12 +190,12 @@ public class HomeActivity extends AppCompatActivity {
     private void displayUser(String userId) {
         mDatabase.child("users").child(userId).addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
-            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
-                if (dataSnapshot.exists()) {
-                    displayedUser = dataSnapshot.getValue(User.class);
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                if (snapshot.exists()) {
+                    displayedUser = snapshot.getValue(User.class);
                     displayedUser.setId(userId);
 
-                    // Set profile image
+                    // Load profile image
                     if (displayedUser.getProfileImage() != null && !displayedUser.getProfileImage().isEmpty()) {
                         Glide.with(HomeActivity.this)
                                 .load(displayedUser.getProfileImage())
@@ -247,60 +205,80 @@ public class HomeActivity extends AppCompatActivity {
                         profileImageView.setImageResource(R.drawable.default_profile);
                     }
 
-                    // Set user info
+                    // Set basic info
                     nameAgeTextView.setText(displayedUser.getFirstName() + " " + displayedUser.getLastName() + ", " + displayedUser.getAge());
                     courseTextView.setText(displayedUser.getCourse());
 
-                    // Show buttons
+                    // ✅ Get nested profile info
+                    DataSnapshot profileSnapshot = snapshot.child("profile");
+
+                    String bio = profileSnapshot.child("bio").getValue(String.class);
+                    String hobbies = profileSnapshot.child("hobbies").getValue(String.class);
+
+                    bioTextView.setText(bio != null ? bio : "No bio provided");
+                    hobbiesTextView.setText(hobbies != null ? hobbies : "No hobbies listed");
+
+                    // Show profile card and controls
+                    userCardView.setVisibility(View.VISIBLE);
                     likeButton.setVisibility(View.VISIBLE);
                     skipButton.setVisibility(View.VISIBLE);
                     viewProfileButton.setVisibility(View.VISIBLE);
+                    noMatchesTextView.setVisibility(View.GONE);
                 }
             }
 
             @Override
-            public void onCancelled(@NonNull DatabaseError databaseError) {
-                Toast.makeText(HomeActivity.this, "Failed to load user data: " + databaseError.getMessage(),
-                        Toast.LENGTH_SHORT).show();
+            public void onCancelled(@NonNull DatabaseError error) {
+                Toast.makeText(HomeActivity.this, "Failed to load user profile.", Toast.LENGTH_SHORT).show();
             }
         });
     }
 
+
+    private void showNextUser() {
+        currentIndex++;
+
+        if (currentIndex < potentialMatches.size()) {
+            displayUser(potentialMatches.get(currentIndex));
+        } else {
+            displayedUser = null;
+
+            // Hide all profile views
+            userCardView.setVisibility(View.GONE);
+            likeButton.setVisibility(View.GONE);
+            skipButton.setVisibility(View.GONE);
+            viewProfileButton.setVisibility(View.GONE);
+
+            // Show message
+            noMatchesTextView.setVisibility(View.VISIBLE);
+        }
+    }
+
     private void likeUser(String userId) {
-        // Save like to database
         Map<String, Object> likeData = new HashMap<>();
         likeData.put("type", "like");
         likeData.put("timestamp", System.currentTimeMillis());
 
-        mDatabase.child("users").child(currentUserId).child("interactions").child(userId).setValue(likeData)
+        mDatabase.child("users").child(currentUserId).child("interactions").child(userId)
+                .setValue(likeData)
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
-                        // Check if this is a mutual like (match)
                         checkForMatch(userId);
-
-                        // Show next user
                         showNextUser();
-                    } else {
-                        Toast.makeText(HomeActivity.this, "Failed to save like: " + task.getException().getMessage(),
-                                Toast.LENGTH_SHORT).show();
                     }
                 });
     }
 
     private void skipUser(String userId) {
-        // Save skip to database
         Map<String, Object> skipData = new HashMap<>();
         skipData.put("type", "skip");
         skipData.put("timestamp", System.currentTimeMillis());
 
-        mDatabase.child("users").child(currentUserId).child("interactions").child(userId).setValue(skipData)
+        mDatabase.child("users").child(currentUserId).child("interactions").child(userId)
+                .setValue(skipData)
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
-                        // Show next user
                         showNextUser();
-                    } else {
-                        Toast.makeText(HomeActivity.this, "Failed to save skip: " + task.getException().getMessage(),
-                                Toast.LENGTH_SHORT).show();
                     }
                 });
     }
@@ -309,70 +287,36 @@ public class HomeActivity extends AppCompatActivity {
         mDatabase.child("users").child(userId).child("interactions").child(currentUserId)
                 .addListenerForSingleValueEvent(new ValueEventListener() {
                     @Override
-                    public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
-                        if (dataSnapshot.exists()) {
-                            String interactionType = dataSnapshot.child("type").getValue(String.class);
-
-                            if (interactionType != null && interactionType.equals("like")) {
-                                // It's a match!
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+                        if (snapshot.exists()) {
+                            String type = snapshot.child("type").getValue(String.class);
+                            if ("like".equals(type)) {
                                 createMatch(userId);
                             }
                         }
                     }
 
                     @Override
-                    public void onCancelled(@NonNull DatabaseError databaseError) {
-                        // Do nothing
-                    }
+                    public void onCancelled(@NonNull DatabaseError error) {}
                 });
     }
 
     private void createMatch(String matchedUserId) {
-        // Create a unique match ID
         String matchId = mDatabase.child("matches").push().getKey();
 
-        // Create match data
         Map<String, Object> matchData = new HashMap<>();
         matchData.put("user1", currentUserId);
         matchData.put("user2", matchedUserId);
         matchData.put("timestamp", System.currentTimeMillis());
-        matchData.put("lastMessage", null);
-        matchData.put("lastMessageTimestamp", null);
 
-        // Save match to database
         mDatabase.child("matches").child(matchId).setValue(matchData)
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
-                        // Add match reference to both users
                         mDatabase.child("users").child(currentUserId).child("matches").child(matchId).setValue(true);
                         mDatabase.child("users").child(matchedUserId).child("matches").child(matchId).setValue(true);
-
-                        // Show match notification
-                        Toast.makeText(HomeActivity.this, "You have a new match!", Toast.LENGTH_LONG).show();
+                        Toast.makeText(this, "You have a new match!", Toast.LENGTH_LONG).show();
                     }
                 });
-    }
-
-    private void showNextUser() {
-        // Increment index
-        currentIndex++;
-
-        // Check if there are more users
-        if (currentIndex < potentialMatches.size()) {
-            // Display next user
-            displayUser(potentialMatches.get(currentIndex));
-        } else {
-            // No more users to display
-            displayedUser = null;
-            profileImageView.setImageResource(R.drawable.default_profile);
-            nameAgeTextView.setText("No more matches");
-            courseTextView.setText("Try again later or adjust your preferences");
-
-            // Hide buttons
-            likeButton.setVisibility(View.GONE);
-            skipButton.setVisibility(View.GONE);
-            viewProfileButton.setVisibility(View.GONE);
-        }
     }
 
     @Override
@@ -386,20 +330,16 @@ public class HomeActivity extends AppCompatActivity {
         int id = item.getItemId();
 
         if (id == R.id.action_matches) {
-            Intent intent = new Intent(HomeActivity.this, MatchesActivity.class);
-            startActivity(intent);
+            startActivity(new Intent(this, MatchesActivity.class));
             return true;
         } else if (id == R.id.action_edit_profile) {
-            Intent intent = new Intent(HomeActivity.this, EditProfileActivity.class);
-            startActivity(intent);
+            startActivity(new Intent(this, EditProfileActivity.class));
             return true;
         } else if (id == R.id.action_preferences) {
-            Intent intent = new Intent(HomeActivity.this, PreferencesActivity.class);
-            startActivity(intent);
+            startActivity(new Intent(this, PreferencesActivity.class));
             return true;
         } else if (id == R.id.action_settings) {
-            Intent intent = new Intent(HomeActivity.this, SettingsActivity.class);
-            startActivity(intent);
+            startActivity(new Intent(this, SettingsActivity.class));
             return true;
         }
 
