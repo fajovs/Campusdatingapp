@@ -1,0 +1,68 @@
+<resources>
+    <string name="app_name">Essu Dating App</string>
+
+    <!-- Arrays -->
+    <string-array name="courses_array">
+        <item>Computer Science</item>
+        <item>Engineering</item>
+        <item>Business</item>
+        <item>Arts</item>
+        <item>Medicine</item>
+        <item>Law</item>
+        <item>Education</item>
+        <item>Psychology</item>
+        <item>Biology</item>
+        <item>Chemistry</item>
+        <item>Physics</item>
+        <item>Mathematics</item>
+        <item>Economics</item>
+        <item>Political Science</item>
+        <item>Sociology</item>
+        <item>History</item>
+        <item>Literature</item>
+        <item>Philosophy</item>
+        <item>Any</item>
+    </string-array>
+
+    <string-array name="interested_in_array">
+        <item>Men</item>
+        <item>Women</item>
+        <item>Everyone</item>
+        <item>Custom</item>
+    </string-array>
+
+    <string-array name="gender_preference_array">
+        <item>Men</item>
+        <item>Women</item>
+        <item>Everyone</item>
+    </string-array>
+
+    <string-array name="relationship_goals_array">
+        <item>Casual</item>
+        <item>Serious</item>
+        <item>Friendship</item>
+        <item>Study Partner</item>
+        <item>Not Sure Yet</item>
+    </string-array>
+
+    <string-array name="hobbies_array">
+        <item>Reading</item>
+        <item>Sports</item>
+        <item>Music</item>
+        <item>Movies</item>
+        <item>Gaming</item>
+        <item>Cooking</item>
+        <item>Travel</item>
+        <item>Photography</item>
+        <item>Art</item>
+        <item>Dancing</item>
+        <item>Hiking</item>
+        <item>Yoga</item>
+        <item>Meditation</item>
+        <item>Coding</item>
+        <item>Writing</item>
+        <item>Singing</item>
+        <item>Volunteering</item>
+        <item>Gardening</item>
+    </string-array>
+</resources>
